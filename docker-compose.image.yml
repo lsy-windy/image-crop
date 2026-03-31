@@ -1,0 +1,7 @@
+﻿services:
+  image-crop-workspace:
+    image: test3-image-crop-workspace:latest
+    container_name: image-crop-workspace
+    ports:
+      - "8080:80"
+    restart: unless-stopped

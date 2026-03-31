@@ -1,0 +1,9 @@
+services:
+  image-crop-workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: image-crop-workspace
+    ports:
+      - "8080:80"
+    restart: unless-stopped
