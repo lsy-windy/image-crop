@@ -1,8 +1,6 @@
 services:
   image-crop-workspace:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: test3-image-crop-workspace:latest
     container_name: image-crop-workspace
     ports:
       - "8881:80"

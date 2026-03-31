@@ -3,5 +3,5 @@
     image: test3-image-crop-workspace:latest
     container_name: image-crop-workspace
     ports:
-      - "8080:80"
+      - "8881:80"
     restart: unless-stopped

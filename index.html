@@ -9,7 +9,18 @@
   <body>
     <div class="app" id="app" style="--sidebar-width: 300px">
       <aside class="sidebar" id="sidebar">
-        <h1>Image Crop</h1>
+        <div class="sidebar-title">
+          <h1>Image Crop</h1>
+          <span class="help-badge-wrap" tabindex="0" aria-label="숨겨진 기능 안내">
+            <span class="help-badge">?</span>
+            <div class="help-tooltip" role="note">
+              <p>Shift + (범위)드래그: 선택 비율 고정</p>
+              <p>Shift + (영역)드래그: 가로/세로 고정 이동</p>
+              <p>Shift + 휠: 크롭영역 확대/축소</p>
+              <p>우클릭 메뉴: 이미지 대비 비율 크롭</p>
+            </div>
+          </span>
+        </div>
 
         <input id="fileInput" type="file" accept="image/*" hidden />
 
@@ -80,7 +91,12 @@
           <span class="upload-trigger-title">이미지 업로드</span>
           <span class="upload-trigger-desc">파일을 드래그 앤 드롭하거나 이 영역을 클릭하세요</span>
         </button>
-        <div class="context-menu" id="cropContextMenu" role="menu" aria-hidden="true">업데이트 예정</div>
+        <div class="context-menu" id="cropContextMenu" role="menu" aria-hidden="true">
+          <button type="button" class="context-menu-item" data-action="selectAll">전체 범위 선택</button>
+          <button type="button" class="context-menu-item" data-action="selectHalf">1/2 선택</button>
+          <button type="button" class="context-menu-item" data-action="selectQuarter">1/4 선택</button>
+          <button type="button" class="context-menu-item" data-action="selectCustomPercent">자유 선택 (%)</button>
+        </div>
       </main>
     </div>
 

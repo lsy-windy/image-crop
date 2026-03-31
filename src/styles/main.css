@@ -35,6 +35,7 @@ body {
   grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .sidebar {
@@ -46,11 +47,75 @@ body {
   border-right: 1px solid var(--line);
   min-height: 0;
   overflow-y: auto;
+  position: relative;
+  z-index: 1000;
 }
 
 .sidebar h1 {
   margin: 0;
   font-size: 1.25rem;
+}
+
+.sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  position: relative;
+}
+
+.help-badge-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 42, 55, 0.35);
+  color: var(--text);
+  opacity: 0.9;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.88);
+  cursor: help;
+}
+
+.help-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483647;
+  width: 260px;
+  display: none;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 12px 24px rgba(17, 24, 39, 0.16);
+  pointer-events: none;
+}
+
+.help-tooltip p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.help-tooltip p + p {
+  margin-top: 0.32rem;
+}
+
+.help-tooltip.open {
+  display: block;
 }
 
 .sidebar p {
@@ -228,6 +293,7 @@ body.is-resizing * {
   display: grid;
   min-height: 0;
   overflow: hidden;
+  z-index: 0;
 }
 
 .drop-overlay {
@@ -329,6 +395,25 @@ canvas {
 
 .context-menu.open {
   display: block;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  padding: 0.35rem 0.2rem;
+  border-radius: 0.35rem;
+  cursor: pointer;
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: #eff6ff;
+  outline: none;
 }
 
 .modal-backdrop {

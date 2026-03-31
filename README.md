@@ -15,16 +15,16 @@
 1. 이미지 빌드
    - `docker build -t image-crop-workspace .`
 2. 컨테이너 실행
-   - `docker run -d -p 8080:80 --name image-crop-workspace image-crop-workspace`
+   - `docker run -d -p 8881:80 --name image-crop-workspace image-crop-workspace`
 3. 접속
-   - `http://localhost:8080`
+   - `http://localhost:8881`
 
 ## Docker Compose 실행
 
 1. 실행
    - `docker compose up -d --build`
 2. 접속
-   - `http://localhost:8080`
+   - `http://localhost:8881`
 
 ## 주요 파일
 

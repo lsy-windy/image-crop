@@ -32,6 +32,8 @@ const infoBytes = document.getElementById("infoBytes");
 const infoRatio = document.getElementById("infoRatio");
 const canvas = document.getElementById("canvas");
 const cropContextMenu = document.getElementById("cropContextMenu");
+const helpBadgeWrap = document.querySelector(".help-badge-wrap");
+const helpTooltip = helpBadgeWrap ? helpBadgeWrap.querySelector(".help-tooltip") : null;
 const ctx = canvas.getContext("2d");
 
 const MIN_SELECTION_SIZE = 20;
@@ -84,7 +86,9 @@ const state = {
   resizing: false,
   pointer: {
     active: false,
+    pointerId: null,
     mode: "",
+    lockAxis: "",
     handle: "",
     startPoint: null,
     startSelection: null,
@@ -506,58 +510,64 @@ async function runAiDownscale() {
 }
 
 // Re-shape the active crop selection to a target ratio while keeping it visible.
-function fitSelectionToAspect(ratio) {
+function fitSelectionToAspect(ratio, ratioParts = null) {
   if (!state.image || !state.drawArea || !ratio || ratio <= 0) {
     return;
   }
   const area = state.drawArea;
-  const padding = 12;
-  const maxW = Math.max(MIN_SELECTION_SIZE, area.drawW - padding * 2);
-  const maxH = Math.max(MIN_SELECTION_SIZE, area.drawH - padding * 2);
+  const scale = area.scale;
 
-  let centerX = area.offsetX + area.drawW / 2;
-  let centerY = area.offsetY + area.drawH / 2;
-  let baseW = maxW;
-  let baseH = maxH;
+  let ratioW = 0;
+  let ratioH = 0;
+  if (ratioParts && Number.isFinite(ratioParts.w) && Number.isFinite(ratioParts.h)) {
+    ratioW = Math.max(1, Math.round(Math.abs(ratioParts.w)));
+    ratioH = Math.max(1, Math.round(Math.abs(ratioParts.h)));
+  } else {
+    const base = 1000;
+    ratioW = Math.max(1, Math.round(ratio * base));
+    ratioH = base;
+    const d = gcd(ratioW, ratioH);
+    ratioW = Math.max(1, ratioW / d);
+    ratioH = Math.max(1, ratioH / d);
+  }
 
+  const maxSw = Math.max(1, Math.floor(state.image.width));
+  const maxSh = Math.max(1, Math.floor(state.image.height));
+
+  const kMaxW = Math.floor(maxSw / ratioW);
+  const kMaxH = Math.floor(maxSh / ratioH);
+  const kMax = Math.min(kMaxW, kMaxH);
+  if (kMax < 1) {
+    return;
+  }
+
+  let centerImgX = state.image.width / 2;
+  let centerImgY = state.image.height / 2;
+  let baseSw = maxSw;
+  let baseSh = maxSh;
   if (state.selection) {
-    centerX = state.selection.x + state.selection.w / 2;
-    centerY = state.selection.y + state.selection.h / 2;
-    baseW = Math.min(maxW, state.selection.w);
-    baseH = Math.min(maxH, state.selection.h);
+    centerImgX = (state.selection.x + state.selection.w / 2 - area.offsetX) / scale;
+    centerImgY = (state.selection.y + state.selection.h / 2 - area.offsetY) / scale;
+    baseSw = Math.max(1, Math.round(state.selection.w / scale));
+    baseSh = Math.max(1, Math.round(state.selection.h / scale));
   }
 
-  let w = baseW;
-  let h = w / ratio;
-  if (h > maxH) {
-    h = maxH;
-    w = h * ratio;
-  }
-  if (h < MIN_SELECTION_SIZE) {
-    h = MIN_SELECTION_SIZE;
-    w = h * ratio;
-  }
-  if (w < MIN_SELECTION_SIZE) {
-    w = MIN_SELECTION_SIZE;
-    h = w / ratio;
-  }
-  if (w > maxW) {
-    w = maxW;
-    h = w / ratio;
-  }
-  if (h > maxH) {
-    h = maxH;
-    w = h * ratio;
-  }
+  const baseK = Math.min(baseSw / ratioW, baseSh / ratioH);
+  const k = clamp(Math.round(baseK), 1, kMax);
+  const sw = ratioW * k;
+  const sh = ratioH * k;
 
-  const minX = area.offsetX;
-  const maxX = area.offsetX + area.drawW - w;
-  const minY = area.offsetY;
-  const maxY = area.offsetY + area.drawH - h;
+  const maxSx = maxSw - sw;
+  const maxSy = maxSh - sh;
+  const sx = clamp(Math.round(centerImgX - sw / 2), 0, Math.max(0, maxSx));
+  const sy = clamp(Math.round(centerImgY - sh / 2), 0, Math.max(0, maxSy));
 
-  const x = clamp(centerX - w / 2, minX, maxX);
-  const y = clamp(centerY - h / 2, minY, maxY);
-  state.selection = { x, y, w, h };
+  state.selection = {
+    x: area.offsetX + sx * scale,
+    y: area.offsetY + sy * scale,
+    w: sw * scale,
+    h: sh * scale,
+  };
 }
 
 function openCustomRatioDialog() {
@@ -1037,6 +1047,33 @@ function hideContextMenu() {
   cropContextMenu.setAttribute("aria-hidden", "true");
 }
 
+function placeHelpTooltip() {
+  if (!helpBadgeWrap || !helpTooltip) {
+    return;
+  }
+  const badgeRect = helpBadgeWrap.getBoundingClientRect();
+  const tooltipWidth = helpTooltip.offsetWidth || 260;
+  const left = clamp(badgeRect.left, 8, window.innerWidth - tooltipWidth - 8);
+  const top = Math.min(window.innerHeight - 8, badgeRect.bottom + 8);
+  helpTooltip.style.left = `${left}px`;
+  helpTooltip.style.top = `${top}px`;
+}
+
+function showHelpTooltip() {
+  if (!helpTooltip) {
+    return;
+  }
+  helpTooltip.classList.add("open");
+  placeHelpTooltip();
+}
+
+function hideHelpTooltip() {
+  if (!helpTooltip) {
+    return;
+  }
+  helpTooltip.classList.remove("open");
+}
+
 function showContextMenu(x, y) {
   const workspaceRect = dropzone.getBoundingClientRect();
   const menuRect = cropContextMenu.getBoundingClientRect();
@@ -1046,6 +1083,82 @@ function showContextMenu(x, y) {
   cropContextMenu.style.top = `${top}px`;
   cropContextMenu.classList.add("open");
   cropContextMenu.setAttribute("aria-hidden", "false");
+}
+
+function syncAspectRatioToSelection() {
+  if (!state.selection || state.selection.h <= 0) {
+    return;
+  }
+  const ratio = state.selection.w / state.selection.h;
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return;
+  }
+  state.aspectRatio = ratio;
+  state.ratioKey = "custom";
+  setRatioTarget(ratio, ratioTextFromRatio(ratio));
+}
+
+function selectFullDrawArea() {
+  if (!state.image || !state.drawArea) {
+    return;
+  }
+  state.selection = {
+    x: state.drawArea.offsetX,
+    y: state.drawArea.offsetY,
+    w: state.drawArea.drawW,
+    h: state.drawArea.drawH,
+  };
+  syncAspectRatioToSelection();
+  refreshUI();
+}
+
+function selectCenteredByPercent(percent) {
+  if (!state.image || !state.drawArea) {
+    return;
+  }
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    return;
+  }
+
+  const ratio = percent / 100;
+  const nextW = Math.max(1, state.drawArea.drawW * ratio);
+  const nextH = Math.max(1, state.drawArea.drawH * ratio);
+
+  // Center based on image-space halves with ceil for odd sizes.
+  const centerImageX = Math.ceil(state.image.width / 2);
+  const centerImageY = Math.ceil(state.image.height / 2);
+  const centerX = state.drawArea.offsetX + centerImageX * state.drawArea.scale;
+  const centerY = state.drawArea.offsetY + centerImageY * state.drawArea.scale;
+
+  const minX = state.drawArea.offsetX;
+  const minY = state.drawArea.offsetY;
+  const maxX = state.drawArea.offsetX + state.drawArea.drawW - nextW;
+  const maxY = state.drawArea.offsetY + state.drawArea.drawH - nextH;
+
+  state.selection = {
+    x: clamp(centerX - nextW / 2, minX, Math.max(minX, maxX)),
+    y: clamp(centerY - nextH / 2, minY, Math.max(minY, maxY)),
+    w: nextW,
+    h: nextH,
+  };
+  syncAspectRatioToSelection();
+  refreshUI();
+}
+
+function promptAndSelectCustomPercent() {
+  if (!state.image || !state.drawArea) {
+    return;
+  }
+  const input = window.prompt("선택 비율(%)을 입력하세요. (0~100)", "50");
+  if (input === null) {
+    return;
+  }
+  const percent = Number(input.trim());
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    window.alert("0보다 크고 100 이하의 숫자를 입력하세요.");
+    return;
+  }
+  selectCenteredByPercent(percent);
 }
 
 function switchToFreeRatioByManualEdit() {
@@ -1357,7 +1470,9 @@ function clearWorkspace() {
   state.aspectRatio = null;
   state.ratioKey = "";
   state.pointer.active = false;
+  state.pointer.pointerId = null;
   state.pointer.mode = "";
+  state.pointer.lockAxis = "";
   state.pointer.handle = "";
   state.pointer.startPoint = null;
   state.pointer.startSelection = null;
@@ -1535,6 +1650,114 @@ function setCursorForPoint(point) {
   canvas.style.cursor = "default";
 }
 
+function scaleSelectionByFactor(factor) {
+  if (!state.selection || !state.drawArea || !Number.isFinite(factor) || factor <= 0) {
+    return false;
+  }
+
+  const base = state.selection;
+  const area = state.drawArea;
+  const ratio = base.h > 0 ? base.w / base.h : 1;
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return false;
+  }
+
+  let w = base.w * factor;
+  let h = base.h * factor;
+
+  if (w < MIN_SELECTION_SIZE) {
+    w = MIN_SELECTION_SIZE;
+    h = w / ratio;
+  }
+  if (h < MIN_SELECTION_SIZE) {
+    h = MIN_SELECTION_SIZE;
+    w = h * ratio;
+  }
+  if (w > area.drawW) {
+    w = area.drawW;
+    h = w / ratio;
+  }
+  if (h > area.drawH) {
+    h = area.drawH;
+    w = h * ratio;
+  }
+  if (w < MIN_SELECTION_SIZE || h < MIN_SELECTION_SIZE) {
+    return false;
+  }
+
+  const centerX = base.x + base.w / 2;
+  const centerY = base.y + base.h / 2;
+  const minX = area.offsetX;
+  const minY = area.offsetY;
+  const maxX = area.offsetX + area.drawW - w;
+  const maxY = area.offsetY + area.drawH - h;
+
+  state.selection = {
+    x: clamp(centerX - w / 2, minX, Math.max(minX, maxX)),
+    y: clamp(centerY - h / 2, minY, Math.max(minY, maxY)),
+    w,
+    h,
+  };
+  return true;
+}
+
+function updatePointerInteraction(event, point) {
+  if (!state.pointer.startPoint) {
+    return;
+  }
+
+  if (state.pointer.mode === "new") {
+    // New selection drag; ratio lock can come from preset or Shift modifier.
+    const interactionRatio = getInteractionAspectRatio(event);
+    const prevRatio = state.aspectRatio;
+    state.aspectRatio = interactionRatio;
+    const adjusted = applyAspectRatio(state.pointer.startPoint, point);
+    state.aspectRatio = prevRatio;
+    const rect = rectWithinDrawArea(normalizeRect(state.pointer.startPoint, adjusted));
+    state.selection = rect;
+  } else if (state.pointer.mode === "move" && state.pointer.startSelection) {
+    let dx = point.x - state.pointer.startPoint.x;
+    let dy = point.y - state.pointer.startPoint.y;
+    if (event.shiftKey) {
+      if (!state.pointer.lockAxis) {
+        state.pointer.lockAxis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+      }
+      if (state.pointer.lockAxis === "x") {
+        dy = 0;
+      } else {
+        dx = 0;
+      }
+    } else {
+      state.pointer.lockAxis = "";
+    }
+    state.selection = moveSelection(state.pointer.startSelection, dx, dy);
+  } else if (state.pointer.mode === "resize" && state.pointer.startSelection) {
+    if (!event.shiftKey) {
+      switchToFreeRatioByManualEdit();
+    }
+    const dx = point.x - state.pointer.startPoint.x;
+    const dy = point.y - state.pointer.startPoint.y;
+    const interactionRatio = getInteractionAspectRatio(event);
+    state.selection = resizeSelectionByHandle(
+      state.pointer.startSelection,
+      state.pointer.handle,
+      dx,
+      dy,
+      interactionRatio
+    );
+  } else if (state.pointer.mode === "panImage") {
+    const dx = point.x - state.pointer.startPoint.x;
+    const dy = point.y - state.pointer.startPoint.y;
+    state.panX = state.pointer.startPanX + dx;
+    state.panY = state.pointer.startPanY + dy;
+    refreshUI();
+    return;
+  }
+
+  state.pointer.lastPoint = point;
+  refreshUI();
+}
+
 fileInput.addEventListener("change", (event) => {
   const [file] = event.target.files || [];
   loadFile(file);
@@ -1568,7 +1791,7 @@ ratioGroup.addEventListener("click", (event) => {
     state.aspectRatio = w / h;
     state.ratioKey = ratioKey;
     setRatioTarget(state.aspectRatio, ratioKey);
-    fitSelectionToAspect(state.aspectRatio);
+    fitSelectionToAspect(state.aspectRatio, { w, h });
     refreshUI();
   }
 });
@@ -1585,7 +1808,7 @@ ratioApplyBtn.addEventListener("click", () => {
   state.aspectRatio = w / h;
   state.ratioKey = "custom";
   setRatioTarget(state.aspectRatio, `${widthRaw}:${heightRaw}`);
-  fitSelectionToAspect(state.aspectRatio);
+  fitSelectionToAspect(state.aspectRatio, { w, h });
   closeCustomRatioDialog();
   refreshUI();
 });
@@ -1691,27 +1914,7 @@ formatSelect.addEventListener("change", () => {
 });
 
 canvas.addEventListener("pointerdown", (event) => {
-  // Right button inside selection: gesture zoom mode (no new crop creation).
   hideContextMenu();
-  if (event.button === 2) {
-    if (!state.image || !state.selection) {
-      return;
-    }
-    const point = getCanvasPoint(event.clientX, event.clientY);
-    if (!pointInRect(point, state.selection)) {
-      return;
-    }
-    canvas.setPointerCapture(event.pointerId);
-    state.pointer.active = true;
-    state.pointer.mode = "rmbZoom";
-    state.pointer.startPoint = point;
-    state.pointer.lastPoint = point;
-    state.pointer.startSelection = { ...state.selection };
-    state.pointer.moved = false;
-    event.preventDefault();
-    return;
-  }
-
   if (event.button !== 0) {
     return;
   }
@@ -1719,30 +1922,33 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
   const point = getCanvasPoint(event.clientX, event.clientY);
-  if (!pointInDrawArea(point)) {
+  const handleOnSelection = state.selection ? detectHandle(point, state.selection) : null;
+  const insideSelection = state.selection ? pointInRect(point, state.selection) : false;
+  if (!pointInDrawArea(point) && !handleOnSelection && !insideSelection) {
     return;
   }
 
   canvas.setPointerCapture(event.pointerId);
   state.pointer.active = true;
+  state.pointer.pointerId = event.pointerId;
   state.pointer.startPoint = point;
   state.pointer.startSelection = state.selection ? { ...state.selection } : null;
   state.pointer.lastPoint = point;
   state.pointer.moved = false;
   state.pointer.startPanX = state.panX;
   state.pointer.startPanY = state.panY;
+  state.pointer.lockAxis = "";
   state.pointer.handle = "";
   state.pointer.mode = "new";
 
   if (state.selection) {
     // Interaction priority: resize handle -> move selection -> pan image.
-    const handle = detectHandle(point, state.selection);
-    if (handle) {
+    if (handleOnSelection) {
       state.pointer.mode = "resize";
-      state.pointer.handle = handle.name;
+      state.pointer.handle = handleOnSelection.name;
       return;
     }
-    if (pointInRect(point, state.selection)) {
+    if (insideSelection) {
       state.pointer.mode = "move";
       return;
     }
@@ -1762,71 +1968,17 @@ canvas.addEventListener("pointermove", (event) => {
     setCursorForPoint(point);
     return;
   }
-
-  if (!state.pointer.startPoint) {
-    return;
-  }
-
-  if (state.pointer.mode === "new") {
-    // New selection drag; ratio lock can come from preset or Shift modifier.
-    const interactionRatio = getInteractionAspectRatio(event);
-    const prevRatio = state.aspectRatio;
-    state.aspectRatio = interactionRatio;
-    const adjusted = applyAspectRatio(state.pointer.startPoint, point);
-    state.aspectRatio = prevRatio;
-    const rect = rectWithinDrawArea(normalizeRect(state.pointer.startPoint, adjusted));
-    state.selection = rect;
-  } else if (state.pointer.mode === "move" && state.pointer.startSelection) {
-    const dx = point.x - state.pointer.startPoint.x;
-    const dy = point.y - state.pointer.startPoint.y;
-    state.selection = moveSelection(state.pointer.startSelection, dx, dy);
-  } else if (state.pointer.mode === "resize" && state.pointer.startSelection) {
-    if (!event.shiftKey) {
-      switchToFreeRatioByManualEdit();
-    }
-    const dx = point.x - state.pointer.startPoint.x;
-    const dy = point.y - state.pointer.startPoint.y;
-    const interactionRatio = getInteractionAspectRatio(event);
-    state.selection = resizeSelectionByHandle(
-      state.pointer.startSelection,
-      state.pointer.handle,
-      dx,
-      dy,
-      interactionRatio
-    );
-  } else if (state.pointer.mode === "panImage") {
-    const dx = point.x - state.pointer.startPoint.x;
-    const dy = point.y - state.pointer.startPoint.y;
-    state.panX = state.pointer.startPanX + dx;
-    state.panY = state.pointer.startPanY + dy;
-    refreshUI();
-    return;
-  } else if (state.pointer.mode === "rmbZoom" && state.pointer.lastPoint && state.selection) {
-    const dx = point.x - state.pointer.lastPoint.x;
-    const dy = point.y - state.pointer.lastPoint.y;
-    const influence = dx - dy;
-    if (Math.abs(influence) >= 1) {
-      const strength = Math.min(0.35, Math.abs(influence) * 0.01);
-      const factor = influence > 0 ? 1 + strength : 1 / (1 + strength);
-      const center = {
-        x: state.selection.x + state.selection.w / 2,
-        y: state.selection.y + state.selection.h / 2,
-      };
-      zoomAtPoint(factor, center);
-      state.pointer.moved = true;
-      state.suppressContextMenuOnce = true;
-    }
-    state.pointer.lastPoint = point;
-    return;
-  }
-
-  refreshUI();
+  // Active drag is handled by the window-level pointermove listener so
+  // resizing keeps working even when the pointer leaves the image/canvas.
+  return;
 });
 
 function endPointerInteraction() {
   const point = state.pointer.lastPoint;
   state.pointer.active = false;
+  state.pointer.pointerId = null;
   state.pointer.mode = "";
+  state.pointer.lockAxis = "";
   state.pointer.handle = "";
   state.pointer.startPoint = null;
   state.pointer.startSelection = null;
@@ -1841,6 +1993,34 @@ function endPointerInteraction() {
 
 canvas.addEventListener("pointerup", endPointerInteraction);
 canvas.addEventListener("pointercancel", endPointerInteraction);
+window.addEventListener("pointermove", (event) => {
+  if (!state.pointer.active) {
+    return;
+  }
+  if (state.pointer.pointerId !== null && event.pointerId !== state.pointer.pointerId) {
+    return;
+  }
+  const point = getCanvasPoint(event.clientX, event.clientY);
+  updatePointerInteraction(event, point);
+});
+window.addEventListener("pointerup", (event) => {
+  if (!state.pointer.active) {
+    return;
+  }
+  if (state.pointer.pointerId !== null && event.pointerId !== state.pointer.pointerId) {
+    return;
+  }
+  endPointerInteraction();
+});
+window.addEventListener("pointercancel", (event) => {
+  if (!state.pointer.active) {
+    return;
+  }
+  if (state.pointer.pointerId !== null && event.pointerId !== state.pointer.pointerId) {
+    return;
+  }
+  endPointerInteraction();
+});
 
 canvas.addEventListener(
   "wheel",
@@ -1852,6 +2032,13 @@ canvas.addEventListener(
     event.preventDefault();
     const zoomFactor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
     const point = getCanvasPoint(event.clientX, event.clientY);
+    if (event.shiftKey && state.selection) {
+      if (scaleSelectionByFactor(zoomFactor)) {
+        refreshUI();
+        updateCropInfo();
+        return;
+      }
+    }
     zoomAtPoint(zoomFactor, point);
   },
   { passive: false }
@@ -1868,10 +2055,7 @@ canvas.addEventListener("contextmenu", (event) => {
     return;
   }
   const point = getCanvasPoint(event.clientX, event.clientY);
-  if (!pointInRect(point, state.selection)) {
-    if (pointInDrawArea(point)) {
-      event.preventDefault();
-    }
+  if (!pointInDrawArea(point)) {
     hideContextMenu();
     return;
   }
@@ -1885,6 +2069,27 @@ document.addEventListener("pointerdown", (event) => {
   }
   if (!cropContextMenu.contains(event.target)) {
     hideContextMenu();
+  }
+});
+
+cropContextMenu.addEventListener("click", (event) => {
+  const item = event.target.closest(".context-menu-item");
+  if (!item) {
+    return;
+  }
+  const action = item.dataset.action || "";
+  if (action === "selectAll") {
+    selectFullDrawArea();
+    hideContextMenu();
+  } else if (action === "selectHalf") {
+    selectCenteredByPercent(50);
+    hideContextMenu();
+  } else if (action === "selectQuarter") {
+    selectCenteredByPercent(25);
+    hideContextMenu();
+  } else if (action === "selectCustomPercent") {
+    hideContextMenu();
+    promptAndSelectCustomPercent();
   }
 });
 
@@ -2079,7 +2284,16 @@ window.addEventListener("resize", () => {
   applySidebarWidth(sidebar.getBoundingClientRect().width);
   setCanvasSize();
   drawImageWithSelection();
+  placeHelpTooltip();
 });
+
+if (helpBadgeWrap && helpTooltip) {
+  helpBadgeWrap.addEventListener("mouseenter", showHelpTooltip);
+  helpBadgeWrap.addEventListener("mouseleave", hideHelpTooltip);
+  helpBadgeWrap.addEventListener("focusin", showHelpTooltip);
+  helpBadgeWrap.addEventListener("focusout", hideHelpTooltip);
+  window.addEventListener("scroll", placeHelpTooltip, true);
+}
 
 applySidebarWidth(sidebar.getBoundingClientRect().width);
 setCanvasSize();
