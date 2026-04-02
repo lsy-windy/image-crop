@@ -63,6 +63,21 @@ body {
   position: relative;
 }
 
+.about-btn {
+  width: auto;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #0f3d91;
+  border: 1px solid #bfd3fb;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.about-btn:hover:enabled {
+  background: #dbe8ff;
+}
+
 .help-badge-wrap {
   position: relative;
   display: inline-flex;
@@ -443,6 +458,40 @@ canvas {
   font-size: 1.05rem;
 }
 
+.about-modal {
+  width: min(520px, 92vw);
+}
+
+.about-copy p {
+  margin: 0.45rem 0 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.about-feature-list {
+  margin-top: 0.2rem;
+}
+
+.about-feature-item {
+  margin-top: 0.45rem;
+}
+
+.about-feature-item-group {
+  margin-top: 0.45rem;
+}
+
+.about-feature-item-group p {
+  margin: 0;
+}
+
+.about-feature-note {
+  margin-top: 0.18rem !important;
+  padding-left: 1rem;
+  color: #8b1e1e !important;
+  font-size: 0.85rem !important;
+}
+
 .ratio-modal-desc {
   margin: 0.45rem 0 0.8rem;
   color: var(--subtext);
@@ -454,6 +503,10 @@ canvas {
   grid-template-columns: auto minmax(0, 1fr) auto auto minmax(0, 1fr);
   gap: 0.45rem;
   align-items: center;
+}
+
+.ratio-input-row-single {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .ratio-input-row input {

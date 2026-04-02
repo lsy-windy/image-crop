@@ -11,6 +11,7 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-title">
           <h1>Image Crop</h1>
+          <button id="aboutBtn" class="about-btn" type="button">About</button>
           <span class="help-badge-wrap" tabindex="0" aria-label="숨겨진 기능 안내">
             <span class="help-badge">?</span>
             <div class="help-tooltip" role="note">
@@ -30,6 +31,10 @@
         </div>
 
         <div class="control-group">
+          <button id="resetBtn" type="button" disabled>초기화</button>
+        </div>
+
+        <div class="control-group">
           <p class="group-title">크롭 비율</p>
           <div class="ratio-group" id="ratioGroup">
             <button type="button" class="ratio-btn" data-ratio="16:9" disabled>16:9</button>
@@ -44,12 +49,6 @@
           <div class="ratio-group">
             <button id="optionUpscaleBtn" type="button" disabled>업스케일</button>
             <button id="optionDownscaleBtn" type="button" disabled>다운스케일</button>
-          </div>
-        </div>
-
-        <div class="control-group">
-          <p class="group-title">보정 해상도 조절</p>
-          <div class="ratio-group">
             <button id="optionAiUpscaleBtn" type="button" disabled>보정 업스케일</button>
             <button id="optionAiDownscaleBtn" type="button" disabled>보정 다운스케일</button>
           </div>
@@ -95,7 +94,7 @@
           <button type="button" class="context-menu-item" data-action="selectAll">전체 범위 선택</button>
           <button type="button" class="context-menu-item" data-action="selectHalf">1/2 선택</button>
           <button type="button" class="context-menu-item" data-action="selectQuarter">1/4 선택</button>
-          <button type="button" class="context-menu-item" data-action="selectCustomPercent">자유 선택 (%)</button>
+          <button type="button" class="context-menu-item" data-action="selectCustomRatio">자유 비율(%)</button>
         </div>
       </main>
     </div>
@@ -115,6 +114,23 @@
         <div class="ratio-modal-actions">
           <button type="button" id="ratioApplyBtn">적용</button>
           <button type="button" id="ratioCancelBtn" class="secondary">취소</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="percentModalBackdrop" hidden>
+      <section class="ratio-modal" role="dialog" aria-modal="true" aria-labelledby="percentModalTitle">
+        <h2 id="percentModalTitle">선택 비율 입력</h2>
+        <p class="ratio-modal-desc">현재 이미지 크기를 기준으로 선택할 비율(%)을 입력하세요. 예: 50</p>
+        <div class="ratio-input-row ratio-input-row-single">
+          <label for="percentInput">비율</label>
+          <input id="percentInput" type="number" min="1" max="100" step="1" value="50" />
+          <span>%</span>
+        </div>
+        <p class="ratio-error" id="percentErrorText" aria-live="polite"></p>
+        <div class="ratio-modal-actions">
+          <button type="button" id="percentApplyBtn">적용</button>
+          <button type="button" id="percentCancelBtn" class="secondary">취소</button>
         </div>
       </section>
     </div>
@@ -141,6 +157,31 @@
         <div class="ratio-modal-actions">
           <button type="button" id="saveFormatConfirmBtn">확인</button>
           <button type="button" id="saveFormatCancelBtn" class="secondary">취소</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="aboutModalBackdrop" hidden>
+      <section class="ratio-modal about-modal" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
+        <h2 id="aboutModalTitle">About Image Crop</h2>
+        <p class="ratio-modal-desc">
+          Image Crop은 이미지를 빠르게 선택, 비율 조정, 해상도 보정, 저장까지 할 수 있도록 만든 작업용 편집 도구입니다.
+        </p>
+        <div class="about-copy">
+          <p>이미지를 업로드하거나 드래그 앤 드롭하면 바로 편집을 시작할 수 있습니다.</p>
+          <p><strong>주요 기능</strong></p>
+          <div class="about-feature-list">
+            <p class="about-feature-item">- 비율 선택을 통한 이미지 크롭</p>
+            <p class="about-feature-item">- 업/다운 스케일링(단순 이미지 크기 증가)</p>
+            <div class="about-feature-item about-feature-item-group">
+              <p>- 보정 업/다운 스케일링(개선된 이미지 해상도 증가)</p>
+              <p class="about-feature-note">보정 사용 시 편집으로 판단되어 원본과 다른 이미지로 취급될 수 있습니다.</p>
+            </div>
+            <p class="about-feature-item">- 포멧 변경 및 크롭 결과 미리보기, 예상 저장 정보 제공</p>
+          </div>
+        </div>
+        <div class="ratio-modal-actions">
+          <button type="button" id="aboutCloseBtn">닫기</button>
         </div>
       </section>
     </div>

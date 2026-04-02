@@ -4,8 +4,10 @@ const resizer = document.getElementById("resizer");
 const dropzone = document.getElementById("dropzone");
 const uploadTrigger = document.getElementById("uploadTrigger");
 const fileInput = document.getElementById("fileInput");
+const aboutBtn = document.getElementById("aboutBtn");
 const cropBtn = document.getElementById("cropBtn");
 const previewBtn = document.getElementById("previewBtn");
+const resetBtn = document.getElementById("resetBtn");
 const optionUpscaleBtn = document.getElementById("optionUpscaleBtn");
 const optionAiUpscaleBtn = document.getElementById("optionAiUpscaleBtn");
 const optionDownscaleBtn = document.getElementById("optionDownscaleBtn");
@@ -19,6 +21,11 @@ const ratioHeightInput = document.getElementById("ratioHeightInput");
 const ratioApplyBtn = document.getElementById("ratioApplyBtn");
 const ratioCancelBtn = document.getElementById("ratioCancelBtn");
 const ratioErrorText = document.getElementById("ratioErrorText");
+const percentModalBackdrop = document.getElementById("percentModalBackdrop");
+const percentInput = document.getElementById("percentInput");
+const percentApplyBtn = document.getElementById("percentApplyBtn");
+const percentCancelBtn = document.getElementById("percentCancelBtn");
+const percentErrorText = document.getElementById("percentErrorText");
 const scaleSwitchModalBackdrop = document.getElementById("scaleSwitchModalBackdrop");
 const scaleSwitchConfirmBtn = document.getElementById("scaleSwitchConfirmBtn");
 const scaleSwitchCancelBtn = document.getElementById("scaleSwitchCancelBtn");
@@ -26,6 +33,8 @@ const saveFormatModalBackdrop = document.getElementById("saveFormatModalBackdrop
 const saveFormatDontShowChk = document.getElementById("saveFormatDontShowChk");
 const saveFormatConfirmBtn = document.getElementById("saveFormatConfirmBtn");
 const saveFormatCancelBtn = document.getElementById("saveFormatCancelBtn");
+const aboutModalBackdrop = document.getElementById("aboutModalBackdrop");
+const aboutCloseBtn = document.getElementById("aboutCloseBtn");
 const formatSelect = document.getElementById("formatSelect");
 const infoSize = document.getElementById("infoSize");
 const infoBytes = document.getElementById("infoBytes");
@@ -253,8 +262,10 @@ function updateButtonState() {
   const validSelection = Boolean(state.selection && state.selection.w > 3 && state.selection.h > 3);
   const upscaleBlockedBySize = hasImage && isUpscaleBlockedBySize();
   const downscaleBlockedBySize = hasImage && isDownscaleBlockedBySize();
+  const canReset = hasImage || Boolean(state.originalDataUrl);
   cropBtn.disabled = !(hasImage && validSelection) || aiBusy;
   previewBtn.disabled = !(hasImage && validSelection) || aiBusy;
+  resetBtn.disabled = !canReset || aiBusy;
   // Keep real disabled only when no image (no tooltip expected).
   // For size-blocked state, use pseudo-disabled so tooltip can still appear.
   optionUpscaleBtn.disabled = !hasImage || aiBusy;
@@ -587,6 +598,22 @@ function closeCustomRatioDialog() {
   ratioErrorText.textContent = "";
 }
 
+function openCustomPercentDialog() {
+  if (!state.image || !state.drawArea) {
+    return;
+  }
+  percentErrorText.textContent = "";
+  percentInput.value = "50";
+  percentModalBackdrop.hidden = false;
+  percentInput.focus();
+  percentInput.select();
+}
+
+function closeCustomPercentDialog() {
+  percentModalBackdrop.hidden = true;
+  percentErrorText.textContent = "";
+}
+
 function openScaleSwitchDialog(nextMode) {
   state.pendingScaleSwitchMode = nextMode;
   scaleSwitchModalBackdrop.hidden = false;
@@ -841,6 +868,15 @@ function closeSaveFormatDialog() {
   saveFormatModalBackdrop.hidden = true;
   state.pendingSaveCanvas = null;
   state.pendingSaveFormat = null;
+}
+
+function openAboutDialog() {
+  aboutModalBackdrop.hidden = false;
+  aboutCloseBtn.focus();
+}
+
+function closeAboutDialog() {
+  aboutModalBackdrop.hidden = true;
 }
 
 function openSaveFormatDialog(outCanvas, selectedFormat) {
@@ -1143,22 +1179,6 @@ function selectCenteredByPercent(percent) {
   };
   syncAspectRatioToSelection();
   refreshUI();
-}
-
-function promptAndSelectCustomPercent() {
-  if (!state.image || !state.drawArea) {
-    return;
-  }
-  const input = window.prompt("선택 비율(%)을 입력하세요. (0~100)", "50");
-  if (input === null) {
-    return;
-  }
-  const percent = Number(input.trim());
-  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
-    window.alert("0보다 크고 100 이하의 숫자를 입력하세요.");
-    return;
-  }
-  selectCenteredByPercent(percent);
 }
 
 function switchToFreeRatioByManualEdit() {
@@ -1823,6 +1843,26 @@ ratioModalBackdrop.addEventListener("click", (event) => {
   }
 });
 
+percentApplyBtn.addEventListener("click", () => {
+  const percent = Number(percentInput.value.trim());
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    percentErrorText.textContent = "비율은 0보다 크고 100 이하의 숫자로 입력하세요.";
+    return;
+  }
+  selectCenteredByPercent(percent);
+  closeCustomPercentDialog();
+});
+
+percentCancelBtn.addEventListener("click", () => {
+  closeCustomPercentDialog();
+});
+
+percentModalBackdrop.addEventListener("click", (event) => {
+  if (event.target === percentModalBackdrop) {
+    closeCustomPercentDialog();
+  }
+});
+
 scaleSwitchConfirmBtn.addEventListener("click", () => {
   closeScaleSwitchDialog();
   if (state.originalDataUrl) {
@@ -1862,7 +1902,28 @@ saveFormatModalBackdrop.addEventListener("click", (event) => {
   }
 });
 
+aboutBtn.addEventListener("click", () => {
+  openAboutDialog();
+});
+
+aboutCloseBtn.addEventListener("click", () => {
+  closeAboutDialog();
+});
+
+aboutModalBackdrop.addEventListener("click", (event) => {
+  if (event.target === aboutModalBackdrop) {
+    closeAboutDialog();
+  }
+});
+
 window.addEventListener("keydown", (event) => {
+  if (!aboutModalBackdrop.hidden) {
+    if (event.key === "Escape" || event.key === "Enter") {
+      closeAboutDialog();
+    }
+    return;
+  }
+
   if (!saveFormatModalBackdrop.hidden) {
     if (event.key === "Escape") {
       closeSaveFormatDialog();
@@ -1877,6 +1938,15 @@ window.addEventListener("keydown", (event) => {
       closeScaleSwitchDialog();
     } else if (event.key === "Enter") {
       scaleSwitchConfirmBtn.click();
+    }
+    return;
+  }
+
+  if (!percentModalBackdrop.hidden) {
+    if (event.key === "Escape") {
+      closeCustomPercentDialog();
+    } else if (event.key === "Enter") {
+      percentApplyBtn.click();
     }
     return;
   }
@@ -2087,9 +2157,9 @@ cropContextMenu.addEventListener("click", (event) => {
   } else if (action === "selectQuarter") {
     selectCenteredByPercent(25);
     hideContextMenu();
-  } else if (action === "selectCustomPercent") {
+  } else if (action === "selectCustomRatio") {
     hideContextMenu();
-    promptAndSelectCustomPercent();
+    openCustomPercentDialog();
   }
 });
 
@@ -2124,6 +2194,10 @@ previewBtn.addEventListener("click", () => {
     state.previewObjectUrl = url;
     openOrUpdatePreviewPopup(url, out.width, out.height);
   }, "image/png");
+});
+
+resetBtn.addEventListener("click", () => {
+  clearWorkspace();
 });
 
 function runNormalUpscale() {
