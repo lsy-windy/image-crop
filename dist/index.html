@@ -96,6 +96,34 @@
           <button type="button" class="context-menu-item" data-action="selectQuarter">1/4 선택</button>
           <button type="button" class="context-menu-item" data-action="selectCustomRatio">자유 비율(%)</button>
         </div>
+        <button
+          id="mobileInfoFab"
+          class="mobile-info-fab"
+          type="button"
+          aria-label="저장 예상 정보 보기"
+          aria-expanded="false"
+        >!</button>
+        <section class="mobile-info-panel" id="mobileInfoPanel" hidden aria-label="저장 예상 정보">
+          <h2>저장 예상 정보</h2>
+          <p class="format-row">
+            <strong>포맷:</strong>
+            <select id="mobileFormatSelect">
+              <option value="png" selected>PNG</option>
+              <option value="jpg">JPG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="webp">WEBP</option>
+              <option value="gif">GIF</option>
+              <option value="bmp">BMP</option>
+              <option value="tiff">TIFF</option>
+              <option value="avif">AVIF</option>
+              <option value="heic">HEIC</option>
+              <option value="ico">ICO</option>
+            </select>
+          </p>
+          <p><strong>크기:</strong> <span id="mobileInfoSize">-</span></p>
+          <p><strong>용량:</strong> <span id="mobileInfoBytes">-</span></p>
+          <p><strong>비율:</strong> <span id="mobileInfoRatio">-</span></p>
+        </section>
       </main>
     </div>
 
