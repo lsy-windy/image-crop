@@ -39,6 +39,12 @@ const formatSelect = document.getElementById("formatSelect");
 const infoSize = document.getElementById("infoSize");
 const infoBytes = document.getElementById("infoBytes");
 const infoRatio = document.getElementById("infoRatio");
+const mobileInfoFab = document.getElementById("mobileInfoFab");
+const mobileInfoPanel = document.getElementById("mobileInfoPanel");
+const mobileFormatSelect = document.getElementById("mobileFormatSelect");
+const mobileInfoSize = document.getElementById("mobileInfoSize");
+const mobileInfoBytes = document.getElementById("mobileInfoBytes");
+const mobileInfoRatio = document.getElementById("mobileInfoRatio");
 const canvas = document.getElementById("canvas");
 const cropContextMenu = document.getElementById("cropContextMenu");
 const helpBadgeWrap = document.querySelector(".help-badge-wrap");
@@ -126,6 +132,15 @@ const state = {
   pendingSaveCanvas: null,
   pendingSaveFormat: null,
   scaleHistory: [],
+  mobileInfoFabDrag: {
+    active: false,
+    pointerId: null,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    offsetX: 0,
+    offsetY: 0,
+  },
 };
 
 function clamp(value, min, max) {
@@ -149,6 +164,55 @@ function applySidebarWidth(nextWidth) {
   const width = clamp(nextWidth, min, max);
   app.style.setProperty("--sidebar-width", `${width}px`);
   return width;
+}
+
+function syncMobileFormatSelect() {
+  if (mobileFormatSelect) {
+    mobileFormatSelect.value = formatSelect.value;
+  }
+}
+
+function setTextIfPresent(node, text) {
+  if (node) {
+    node.textContent = text;
+  }
+}
+
+function setMobileInfoPanelPosition() {
+  if (!mobileInfoFab || !mobileInfoPanel || window.innerWidth > 900) {
+    return;
+  }
+  const fabRect = mobileInfoFab.getBoundingClientRect();
+  const panelWidth = Math.min(280, window.innerWidth - 24);
+  const panelHeight = mobileInfoPanel.offsetHeight || 186;
+  const gap = 10;
+  const left = clamp(fabRect.right - panelWidth, 12, window.innerWidth - panelWidth - 12);
+  let top = fabRect.top - panelHeight - gap;
+  if (top < 72) {
+    top = Math.min(window.innerHeight - panelHeight - 12, fabRect.bottom + gap);
+  }
+  mobileInfoPanel.style.left = `${left}px`;
+  mobileInfoPanel.style.top = `${Math.max(72, top)}px`;
+  mobileInfoPanel.style.right = "auto";
+  mobileInfoPanel.style.bottom = "auto";
+}
+
+function setMobileInfoPanelOpen(isOpen) {
+  if (!mobileInfoPanel || !mobileInfoFab) {
+    return;
+  }
+  mobileInfoPanel.hidden = !isOpen;
+  mobileInfoFab.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  if (isOpen) {
+    setMobileInfoPanelPosition();
+  }
+}
+
+function toggleMobileInfoPanel() {
+  if (!mobileInfoPanel) {
+    return;
+  }
+  setMobileInfoPanelOpen(mobileInfoPanel.hidden);
 }
 
 function setCanvasSize() {
@@ -397,6 +461,9 @@ function updateButtonState() {
   optionAiDownscaleBtn.setAttribute("data-tooltip", aiDownscaleTooltip);
   restoreBtn.disabled = !state.originalDataUrl || aiBusy;
   formatSelect.disabled = !hasImage || aiBusy;
+  if (mobileFormatSelect) {
+    mobileFormatSelect.disabled = !hasImage || aiBusy;
+  }
   ratioButtons.forEach((button) => {
     button.disabled = !hasImage || aiBusy;
   });
@@ -801,9 +868,12 @@ function setRatioTarget(ratio, label = "") {
 }
 
 function clearCropInfo() {
-  infoSize.textContent = "-";
-  infoBytes.textContent = "-";
-  infoRatio.textContent = "-";
+  setTextIfPresent(infoSize, "-");
+  setTextIfPresent(infoBytes, "-");
+  setTextIfPresent(infoRatio, "-");
+  setTextIfPresent(mobileInfoSize, "-");
+  setTextIfPresent(mobileInfoBytes, "-");
+  setTextIfPresent(mobileInfoRatio, "-");
 }
 
 function getCropPixelRect() {
@@ -1127,7 +1197,9 @@ function updateCropInfo() {
     return;
   }
 
-  infoSize.textContent = `${crop.sw} x ${crop.sh} px`;
+  const sizeText = `${crop.sw} x ${crop.sh} px`;
+  setTextIfPresent(infoSize, sizeText);
+  setTextIfPresent(mobileInfoSize, sizeText);
   const d = gcd(crop.sw, crop.sh);
   const currentRatioText = `${crop.sw / d}:${crop.sh / d}`;
   if (
@@ -1136,11 +1208,16 @@ function updateCropInfo() {
     state.zoomRatioTarget > 0
   ) {
     const targetText = state.zoomRatioTargetLabel || ratioTextFromRatio(state.zoomRatioTarget);
-    infoRatio.textContent = `현재: ${currentRatioText} (목표: ${targetText})`;
+    const ratioText = `현재: ${currentRatioText} (목표: ${targetText})`;
+    setTextIfPresent(infoRatio, ratioText);
+    setTextIfPresent(mobileInfoRatio, ratioText);
   } else {
-    infoRatio.textContent = `현재: ${currentRatioText}`;
+    const ratioText = `현재: ${currentRatioText}`;
+    setTextIfPresent(infoRatio, ratioText);
+    setTextIfPresent(mobileInfoRatio, ratioText);
   }
-  infoBytes.textContent = "계산 중...";
+  setTextIfPresent(infoBytes, "계산 중...");
+  setTextIfPresent(mobileInfoBytes, "계산 중...");
   const selected = getSelectedFormat();
   if (isSizeEstimationUnsupported(selected)) {
     state.infoEstimateToken += 1;
@@ -1148,7 +1225,8 @@ function updateCropInfo() {
       clearTimeout(state.infoEstimateTimer);
       state.infoEstimateTimer = null;
     }
-    infoBytes.textContent = "계산 불가";
+    setTextIfPresent(infoBytes, "계산 불가");
+    setTextIfPresent(mobileInfoBytes, "계산 불가");
     return;
   }
 
@@ -1169,13 +1247,17 @@ function updateCropInfo() {
         return;
       }
       if (blob) {
-        infoBytes.textContent = formatBytes(blob.size);
+        const bytesText = formatBytes(blob.size);
+        setTextIfPresent(infoBytes, bytesText);
+        setTextIfPresent(mobileInfoBytes, bytesText);
       } else {
         out.toBlob((pngBlob) => {
           if (token !== state.infoEstimateToken) {
             return;
           }
-          infoBytes.textContent = pngBlob ? `${formatBytes(pngBlob.size)} (PNG 추정)` : "-";
+          const bytesText = pngBlob ? `${formatBytes(pngBlob.size)} (PNG 추정)` : "-";
+          setTextIfPresent(infoBytes, bytesText);
+          setTextIfPresent(mobileInfoBytes, bytesText);
         }, "image/png");
       }
     }, selected.mime, selected.quality);
@@ -1344,13 +1426,11 @@ function defaultSelectionFromDrawArea() {
   if (!state.drawArea) {
     return null;
   }
-  const marginX = state.drawArea.drawW * 0.12;
-  const marginY = state.drawArea.drawH * 0.12;
   return {
-    x: state.drawArea.offsetX + marginX,
-    y: state.drawArea.offsetY + marginY,
-    w: state.drawArea.drawW - marginX * 2,
-    h: state.drawArea.drawH - marginY * 2,
+    x: state.drawArea.offsetX,
+    y: state.drawArea.offsetY,
+    w: state.drawArea.drawW,
+    h: state.drawArea.drawH,
   };
 }
 
@@ -2158,8 +2238,16 @@ window.addEventListener("keydown", (event) => {
 });
 
 formatSelect.addEventListener("change", () => {
+  syncMobileFormatSelect();
   updateCropInfo();
 });
+
+if (mobileFormatSelect) {
+  mobileFormatSelect.addEventListener("change", () => {
+    formatSelect.value = mobileFormatSelect.value;
+    updateCropInfo();
+  });
+}
 
 ["dragenter", "dragover"].forEach((eventName) => {
   dropzone.addEventListener(eventName, (event) => {
@@ -2181,14 +2269,15 @@ formatSelect.addEventListener("change", () => {
 
 canvas.addEventListener("pointerdown", (event) => {
   hideContextMenu();
+  const isTouchPointer = event.pointerType === "touch";
   trackTouchPoint(event);
-  if (event.button !== 0) {
+  if (!isTouchPointer && event.button !== 0) {
     return;
   }
   if (!state.image) {
     return;
   }
-  if (event.pointerType === "touch" && getTouchGesturePoints().length >= 2) {
+  if (isTouchPointer && getTouchGesturePoints().length >= 2) {
     startTouchGesture();
     return;
   }
@@ -2354,10 +2443,29 @@ canvas.addEventListener("contextmenu", (event) => {
 
 document.addEventListener("pointerdown", (event) => {
   if (!cropContextMenu.classList.contains("open")) {
+    if (!mobileInfoPanel || mobileInfoPanel.hidden || window.innerWidth > 900) {
+      return;
+    }
+    if (
+      mobileInfoPanel.contains(event.target) ||
+      (mobileInfoFab && mobileInfoFab.contains(event.target))
+    ) {
+      return;
+    }
+    setMobileInfoPanelOpen(false);
     return;
   }
   if (!cropContextMenu.contains(event.target)) {
     hideContextMenu();
+  }
+  if (
+    mobileInfoPanel &&
+    !mobileInfoPanel.hidden &&
+    window.innerWidth <= 900 &&
+    !mobileInfoPanel.contains(event.target) &&
+    !(mobileInfoFab && mobileInfoFab.contains(event.target))
+  ) {
+    setMobileInfoPanelOpen(false);
   }
 });
 
@@ -2381,6 +2489,68 @@ cropContextMenu.addEventListener("click", (event) => {
     openCustomPercentDialog();
   }
 });
+
+if (mobileInfoFab) {
+  mobileInfoFab.addEventListener("pointerdown", (event) => {
+    if (window.innerWidth > 900) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = mobileInfoFab.getBoundingClientRect();
+    mobileInfoFab.setPointerCapture(event.pointerId);
+    state.mobileInfoFabDrag.active = true;
+    state.mobileInfoFabDrag.pointerId = event.pointerId;
+    state.mobileInfoFabDrag.moved = false;
+    state.mobileInfoFabDrag.startX = event.clientX;
+    state.mobileInfoFabDrag.startY = event.clientY;
+    state.mobileInfoFabDrag.offsetX = event.clientX - rect.left;
+    state.mobileInfoFabDrag.offsetY = event.clientY - rect.top;
+  });
+
+  mobileInfoFab.addEventListener("pointermove", (event) => {
+    if (!state.mobileInfoFabDrag.active || state.mobileInfoFabDrag.pointerId !== event.pointerId) {
+      return;
+    }
+    const dx = event.clientX - state.mobileInfoFabDrag.startX;
+    const dy = event.clientY - state.mobileInfoFabDrag.startY;
+    if (!state.mobileInfoFabDrag.moved && Math.hypot(dx, dy) >= 6) {
+      state.mobileInfoFabDrag.moved = true;
+    }
+    if (!state.mobileInfoFabDrag.moved) {
+      return;
+    }
+    const width = mobileInfoFab.offsetWidth || 42;
+    const height = mobileInfoFab.offsetHeight || 42;
+    const left = clamp(event.clientX - state.mobileInfoFabDrag.offsetX, 10, window.innerWidth - width - 10);
+    const top = clamp(event.clientY - state.mobileInfoFabDrag.offsetY, 72, window.innerHeight - height - 10);
+    mobileInfoFab.style.left = `${left}px`;
+    mobileInfoFab.style.top = `${top}px`;
+    mobileInfoFab.style.right = "auto";
+    mobileInfoFab.style.bottom = "auto";
+    if (!mobileInfoPanel.hidden) {
+      setMobileInfoPanelPosition();
+    }
+  });
+
+  mobileInfoFab.addEventListener("pointerup", (event) => {
+    if (state.mobileInfoFabDrag.pointerId !== event.pointerId) {
+      return;
+    }
+    if (!state.mobileInfoFabDrag.moved) {
+      toggleMobileInfoPanel();
+    }
+    state.mobileInfoFabDrag.active = false;
+    state.mobileInfoFabDrag.pointerId = null;
+    state.mobileInfoFabDrag.moved = false;
+  });
+
+  mobileInfoFab.addEventListener("pointercancel", () => {
+    state.mobileInfoFabDrag.active = false;
+    state.mobileInfoFabDrag.pointerId = null;
+    state.mobileInfoFabDrag.moved = false;
+  });
+}
 
 cropBtn.addEventListener("click", () => {
   const out = buildCroppedCanvas();
@@ -2578,6 +2748,10 @@ window.addEventListener("resize", () => {
   setCanvasSize();
   drawImageWithSelection();
   placeHelpTooltip();
+  syncMobileFormatSelect();
+  if (!mobileInfoPanel?.hidden) {
+    setMobileInfoPanelPosition();
+  }
 });
 
 if (helpBadgeWrap && helpTooltip) {
@@ -2589,6 +2763,7 @@ if (helpBadgeWrap && helpTooltip) {
 }
 
 applySidebarWidth(sidebar.getBoundingClientRect().width);
+syncMobileFormatSelect();
 setCanvasSize();
 drawPlaceholder();
 updateButtonState();
