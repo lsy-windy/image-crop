@@ -424,8 +424,14 @@ canvas {
 
   .control-group button,
   .ratio-group button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: auto;
     min-width: 96px;
+    min-height: 42px;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
     white-space: nowrap;
   }
 
