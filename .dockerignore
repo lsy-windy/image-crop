@@ -1,8 +1,0 @@
-.git
-.gitignore
-node_modules
-_rollback_*
-deploy-package.zip
-README.md
-src
-index.html
