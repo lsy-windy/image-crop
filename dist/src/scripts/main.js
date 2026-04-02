@@ -110,6 +110,7 @@ const state = {
     points: new Map(),
     active: false,
     lastDistance: 0,
+    selectionSnapshot: null,
   },
   suppressContextMenuOnce: false,
   infoEstimateToken: 0,
@@ -150,6 +151,14 @@ function setCanvasSize() {
   const rect = dropzone.getBoundingClientRect();
   canvas.width = Math.max(320, Math.floor(rect.width - 32));
   canvas.height = Math.max(320, Math.floor(rect.height - 32));
+}
+
+function getInitialFitZoom(image) {
+  if (!image || !canvas.width || !canvas.height) {
+    return 1;
+  }
+  const fitZoom = Math.min(canvas.width / image.width, canvas.height / image.height, 1);
+  return Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1;
 }
 
 function drawPlaceholder() {
@@ -1420,7 +1429,7 @@ function loadImageFromUrl(url, options = {}) {
       state.panX = Number.isFinite(viewState.panX) ? viewState.panX : 0;
       state.panY = Number.isFinite(viewState.panY) ? viewState.panY : 0;
     } else {
-      state.zoom = preserveView ? prevZoom : 1;
+      state.zoom = preserveView ? prevZoom : getInitialFitZoom(img);
       state.panX = preserveView ? prevPanX : 0;
       state.panY = preserveView ? prevPanY : 0;
     }
@@ -1761,6 +1770,7 @@ function getMidpointBetweenPoints(a, b) {
 function stopTouchGesture() {
   state.touchGesture.active = false;
   state.touchGesture.lastDistance = 0;
+  state.touchGesture.selectionSnapshot = null;
 }
 
 function startTouchGesture() {
@@ -1773,6 +1783,7 @@ function startTouchGesture() {
   }
   state.touchGesture.active = true;
   state.touchGesture.lastDistance = getDistanceBetweenPoints(points[0], points[1]);
+  state.touchGesture.selectionSnapshot = state.selection ? { ...state.selection } : null;
   return state.touchGesture.lastDistance > 0;
 }
 
@@ -1805,6 +1816,10 @@ function updateTouchGesture() {
   const midpointClient = getMidpointBetweenPoints(points[0], points[1]);
   const midpointCanvas = getCanvasPoint(midpointClient.x, midpointClient.y);
   zoomAtPoint(zoomFactor, midpointCanvas);
+  if (state.touchGesture.selectionSnapshot) {
+    state.selection = { ...state.touchGesture.selectionSnapshot };
+    refreshUI();
+  }
   return true;
 }
 
