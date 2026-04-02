@@ -291,6 +291,13 @@ button.pseudo-disabled:hover {
   display: none;
 }
 
+@media (min-width: 901px) {
+  .mobile-info-fab,
+  .mobile-info-panel {
+    display: none !important;
+  }
+}
+
 .resizer {
   background: linear-gradient(180deg, #c3d2e2 0%, #b0c0d2 100%);
   cursor: col-resize;

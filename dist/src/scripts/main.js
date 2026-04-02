@@ -30,6 +30,7 @@ const scaleSwitchModalBackdrop = document.getElementById("scaleSwitchModalBackdr
 const scaleSwitchConfirmBtn = document.getElementById("scaleSwitchConfirmBtn");
 const scaleSwitchCancelBtn = document.getElementById("scaleSwitchCancelBtn");
 const saveFormatModalBackdrop = document.getElementById("saveFormatModalBackdrop");
+const saveFormatModalDesc = document.getElementById("saveFormatModalDesc");
 const saveFormatDontShowChk = document.getElementById("saveFormatDontShowChk");
 const saveFormatConfirmBtn = document.getElementById("saveFormatConfirmBtn");
 const saveFormatCancelBtn = document.getElementById("saveFormatCancelBtn");
@@ -98,6 +99,7 @@ const state = {
   selection: null,
   drawArea: null,
   zoom: 1,
+  minZoom: 1,
   panX: 0,
   panY: 0,
   aspectRatio: null,
@@ -227,6 +229,15 @@ function getInitialFitZoom(image) {
   }
   const fitZoom = Math.min(canvas.width / image.width, canvas.height / image.height, 1);
   return Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1;
+}
+
+function updateMinZoomForCurrentImage() {
+  state.minZoom = state.image ? getInitialFitZoom(state.image) : 1;
+  if (state.zoom < state.minZoom) {
+    state.zoom = state.minZoom;
+    state.panX = 0;
+    state.panY = 0;
+  }
 }
 
 function drawPlaceholder() {
@@ -1056,6 +1067,11 @@ function closeAboutDialog() {
 function openSaveFormatDialog(outCanvas, selectedFormat) {
   state.pendingSaveCanvas = outCanvas;
   state.pendingSaveFormat = selectedFormat;
+  if (saveFormatModalDesc) {
+    saveFormatModalDesc.textContent = window.innerWidth <= 900
+      ? "저장하기 전, [!]버튼을 클릭하여 확장자를 확인하여 주시기 바랍니다."
+      : "하단에서 선택한 확장자로 저장됩니다.";
+  }
   saveFormatDontShowChk.checked = false;
   saveFormatModalBackdrop.hidden = false;
   saveFormatConfirmBtn.focus();
@@ -1502,7 +1518,7 @@ function zoomAtPoint(zoomFactor, canvasPoint) {
     ? state.selection.w / state.selection.h
     : null;
   const prevZoom = state.zoom;
-  const nextZoom = clamp(prevZoom * zoomFactor, 0.2, 8);
+  const nextZoom = clamp(prevZoom * zoomFactor, state.minZoom || 1, 8);
   if (nextZoom === prevZoom) {
     return;
   }
@@ -1591,6 +1607,7 @@ function loadImageFromUrl(url, options = {}) {
   const img = new Image();
   img.onload = () => {
     state.image = img;
+    state.minZoom = getInitialFitZoom(img);
     if (!preserveScaleMode) {
       state.scaleMode = "";
     }
@@ -1598,11 +1615,11 @@ function loadImageFromUrl(url, options = {}) {
       state.scaleHistory = [];
     }
     if (viewState && Number.isFinite(viewState.zoom)) {
-      state.zoom = viewState.zoom;
+      state.zoom = clamp(viewState.zoom, state.minZoom, 8);
       state.panX = Number.isFinite(viewState.panX) ? viewState.panX : 0;
       state.panY = Number.isFinite(viewState.panY) ? viewState.panY : 0;
     } else {
-      state.zoom = preserveView ? prevZoom : getInitialFitZoom(img);
+      state.zoom = preserveView ? clamp(prevZoom, state.minZoom, 8) : state.minZoom;
       state.panX = preserveView ? prevPanX : 0;
       state.panY = preserveView ? prevPanY : 0;
     }
@@ -1673,6 +1690,7 @@ function clearWorkspace() {
   state.selection = null;
   state.drawArea = null;
   state.zoom = 1;
+  state.minZoom = 1;
   state.panX = 0;
   state.panY = 0;
   state.aspectRatio = null;
@@ -2746,6 +2764,7 @@ resizer.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   applySidebarWidth(sidebar.getBoundingClientRect().width);
   setCanvasSize();
+  updateMinZoomForCurrentImage();
   drawImageWithSelection();
   placeHelpTooltip();
   syncMobileFormatSelect();
