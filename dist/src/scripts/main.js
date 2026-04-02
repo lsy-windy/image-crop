@@ -47,6 +47,10 @@ const ctx = canvas.getContext("2d");
 
 const MIN_SELECTION_SIZE = 20;
 const HANDLE_SIZE = 10;
+const HANDLE_HIT_SIZE = 28;
+const EDGE_HIT_THICKNESS = 24;
+const MOBILE_HANDLE_HIT_SIZE = 40;
+const MOBILE_EDGE_HIT_THICKNESS = 34;
 const MIN_SIDEBAR_WIDTH = 300;
 const MAX_SIDEBAR_WIDTH = 420;
 const MIN_WORKSPACE_WIDTH = 360;
@@ -215,11 +219,33 @@ function rectWithinDrawArea(rect) {
   if (!state.drawArea) {
     return null;
   }
-  const x = clamp(rect.x, state.drawArea.offsetX, state.drawArea.offsetX + state.drawArea.drawW);
-  const y = clamp(rect.y, state.drawArea.offsetY, state.drawArea.offsetY + state.drawArea.drawH);
-  const x2 = clamp(rect.x + rect.w, state.drawArea.offsetX, state.drawArea.offsetX + state.drawArea.drawW);
-  const y2 = clamp(rect.y + rect.h, state.drawArea.offsetY, state.drawArea.offsetY + state.drawArea.drawH);
-  return { x, y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) };
+  const area = state.drawArea;
+  const maxW = Math.max(1, area.drawW);
+  const maxH = Math.max(1, area.drawH);
+  const width = clamp(rect.w, 0, maxW);
+  const height = clamp(rect.h, 0, maxH);
+  const maxX = area.offsetX + area.drawW - width;
+  const maxY = area.offsetY + area.drawH - height;
+  return {
+    x: clamp(rect.x, area.offsetX, Math.max(area.offsetX, maxX)),
+    y: clamp(rect.y, area.offsetY, Math.max(area.offsetY, maxY)),
+    w: width,
+    h: height,
+  };
+}
+
+function constrainSelectionToDrawArea(rect, fallback = null) {
+  if (!rect || !state.drawArea) {
+    return fallback;
+  }
+  const constrained = rectWithinDrawArea(rect);
+  if (!constrained) {
+    return fallback;
+  }
+  if (constrained.w < MIN_SELECTION_SIZE || constrained.h < MIN_SELECTION_SIZE) {
+    return fallback;
+  }
+  return constrained;
 }
 
 function selectionHandles(rect) {
@@ -239,13 +265,76 @@ function selectionHandles(rect) {
 
 function detectHandle(point, rect) {
   const handles = selectionHandles(rect);
-  const half = HANDLE_SIZE / 2;
-  return handles.find((h) => (
-    point.x >= h.x - half &&
-    point.x <= h.x + half &&
-    point.y >= h.y - half &&
-    point.y <= h.y + half
-  )) || null;
+  const isMobileViewport = window.matchMedia("(max-width: 900px)").matches;
+  const handleHitSize = isMobileViewport ? MOBILE_HANDLE_HIT_SIZE : HANDLE_HIT_SIZE;
+  const edgeHitThickness = isMobileViewport ? MOBILE_EDGE_HIT_THICKNESS : EDGE_HIT_THICKNESS;
+  const handleHalf = handleHitSize / 2;
+
+  const cornerHandle = handles.find((h) => (
+    ["nw", "ne", "se", "sw"].includes(h.name) &&
+    point.x >= h.x - handleHalf &&
+    point.x <= h.x + handleHalf &&
+    point.y >= h.y - handleHalf &&
+    point.y <= h.y + handleHalf
+  ));
+  if (cornerHandle) {
+    return cornerHandle;
+  }
+
+  const edgeHalf = edgeHitThickness / 2;
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const edgeHitAreas = [
+    {
+      name: "n",
+      x: rect.x + handleHalf,
+      y: rect.y - edgeHalf,
+      w: Math.max(0, rect.w - handleHitSize),
+      h: edgeHitThickness,
+      fallbackX: cx - handleHalf,
+      fallbackY: rect.y - edgeHalf,
+    },
+    {
+      name: "s",
+      x: rect.x + handleHalf,
+      y: rect.y + rect.h - edgeHalf,
+      w: Math.max(0, rect.w - handleHitSize),
+      h: edgeHitThickness,
+      fallbackX: cx - handleHalf,
+      fallbackY: rect.y + rect.h - edgeHalf,
+    },
+    {
+      name: "w",
+      x: rect.x - edgeHalf,
+      y: rect.y + handleHalf,
+      w: edgeHitThickness,
+      h: Math.max(0, rect.h - handleHitSize),
+      fallbackX: rect.x - edgeHalf,
+      fallbackY: cy - handleHalf,
+    },
+    {
+      name: "e",
+      x: rect.x + rect.w - edgeHalf,
+      y: rect.y + handleHalf,
+      w: edgeHitThickness,
+      h: Math.max(0, rect.h - handleHitSize),
+      fallbackX: rect.x + rect.w - edgeHalf,
+      fallbackY: cy - handleHalf,
+    },
+  ];
+
+  const edgeHit = edgeHitAreas.find((area) => {
+    const width = area.w > 0 ? area.w : handleHitSize;
+    const height = area.h > 0 ? area.h : handleHitSize;
+    const x = area.w > 0 ? area.x : area.fallbackX;
+    const y = area.h > 0 ? area.y : area.fallbackY;
+    return point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
+  });
+  if (edgeHit) {
+    return handles.find((h) => h.name === edgeHit.name) || null;
+  }
+
+  return null;
 }
 
 function drawHandles(rect) {
@@ -593,6 +682,7 @@ function fitSelectionToAspect(ratio, ratioParts = null) {
     w: sw * scale,
     h: sh * scale,
   };
+  state.selection = constrainSelectionToDrawArea(state.selection, state.selection);
 }
 
 function openCustomRatioDialog() {
@@ -1300,8 +1390,11 @@ function drawImageWithSelection() {
   }
 
   if (state.selection) {
-    const selection = rectWithinDrawArea(state.selection);
+    const selection = constrainSelectionToDrawArea(state.selection, defaultSelectionFromDrawArea());
     state.selection = selection;
+    if (!selection) {
+      return;
+    }
 
     ctx.save();
     ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
@@ -1462,6 +1555,7 @@ function loadImageFromUrl(url, options = {}) {
         w: Math.max(1, sw * state.drawArea.scale),
         h: Math.max(1, sh * state.drawArea.scale),
       };
+      state.selection = constrainSelectionToDrawArea(state.selection, defaultSelectionFromDrawArea());
       refreshUI();
     }
     if (typeof onLoaded === "function") {
