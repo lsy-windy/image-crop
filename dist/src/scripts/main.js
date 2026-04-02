@@ -106,6 +106,12 @@ const state = {
     startPanX: 0,
     startPanY: 0,
   },
+  touchGesture: {
+    points: new Map(),
+    active: false,
+    lastDistance: 0,
+    selectionSnapshot: null,
+  },
   suppressContextMenuOnce: false,
   infoEstimateToken: 0,
   infoEstimateTimer: null,
@@ -145,6 +151,14 @@ function setCanvasSize() {
   const rect = dropzone.getBoundingClientRect();
   canvas.width = Math.max(320, Math.floor(rect.width - 32));
   canvas.height = Math.max(320, Math.floor(rect.height - 32));
+}
+
+function getInitialFitZoom(image) {
+  if (!image || !canvas.width || !canvas.height) {
+    return 1;
+  }
+  const fitZoom = Math.min(canvas.width / image.width, canvas.height / image.height, 1);
+  return Number.isFinite(fitZoom) && fitZoom > 0 ? fitZoom : 1;
 }
 
 function drawPlaceholder() {
@@ -1415,7 +1429,7 @@ function loadImageFromUrl(url, options = {}) {
       state.panX = Number.isFinite(viewState.panX) ? viewState.panX : 0;
       state.panY = Number.isFinite(viewState.panY) ? viewState.panY : 0;
     } else {
-      state.zoom = preserveView ? prevZoom : 1;
+      state.zoom = preserveView ? prevZoom : getInitialFitZoom(img);
       state.panX = preserveView ? prevPanX : 0;
       state.panY = preserveView ? prevPanY : 0;
     }
@@ -1721,6 +1735,94 @@ function scaleSelectionByFactor(factor) {
   return true;
 }
 
+function trackTouchPoint(event) {
+  if (event.pointerType !== "touch") {
+    return;
+  }
+  state.touchGesture.points.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY,
+  });
+}
+
+function untrackTouchPoint(event) {
+  if (event.pointerType !== "touch") {
+    return;
+  }
+  state.touchGesture.points.delete(event.pointerId);
+}
+
+function getTouchGesturePoints() {
+  return Array.from(state.touchGesture.points.values());
+}
+
+function getDistanceBetweenPoints(a, b) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function getMidpointBetweenPoints(a, b) {
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  };
+}
+
+function stopTouchGesture() {
+  state.touchGesture.active = false;
+  state.touchGesture.lastDistance = 0;
+  state.touchGesture.selectionSnapshot = null;
+}
+
+function startTouchGesture() {
+  const points = getTouchGesturePoints();
+  if (points.length < 2 || !state.image) {
+    return false;
+  }
+  if (state.pointer.active) {
+    endPointerInteraction();
+  }
+  state.touchGesture.active = true;
+  state.touchGesture.lastDistance = getDistanceBetweenPoints(points[0], points[1]);
+  state.touchGesture.selectionSnapshot = state.selection ? { ...state.selection } : null;
+  return state.touchGesture.lastDistance > 0;
+}
+
+function updateTouchGesture() {
+  if (!state.touchGesture.active || !state.image) {
+    return false;
+  }
+  const points = getTouchGesturePoints();
+  if (points.length < 2) {
+    stopTouchGesture();
+    return false;
+  }
+
+  const distance = getDistanceBetweenPoints(points[0], points[1]);
+  if (!Number.isFinite(distance) || distance <= 0) {
+    return false;
+  }
+
+  const previousDistance = state.touchGesture.lastDistance;
+  state.touchGesture.lastDistance = distance;
+  if (!Number.isFinite(previousDistance) || previousDistance <= 0) {
+    return false;
+  }
+
+  const zoomFactor = clamp(distance / previousDistance, 0.92, 1.08);
+  if (zoomFactor === 1) {
+    return false;
+  }
+
+  const midpointClient = getMidpointBetweenPoints(points[0], points[1]);
+  const midpointCanvas = getCanvasPoint(midpointClient.x, midpointClient.y);
+  zoomAtPoint(zoomFactor, midpointCanvas);
+  if (state.touchGesture.selectionSnapshot) {
+    state.selection = { ...state.touchGesture.selectionSnapshot };
+    refreshUI();
+  }
+  return true;
+}
+
 function updatePointerInteraction(event, point) {
   if (!state.pointer.startPoint) {
     return;
@@ -1985,10 +2087,15 @@ formatSelect.addEventListener("change", () => {
 
 canvas.addEventListener("pointerdown", (event) => {
   hideContextMenu();
+  trackTouchPoint(event);
   if (event.button !== 0) {
     return;
   }
   if (!state.image) {
+    return;
+  }
+  if (event.pointerType === "touch" && getTouchGesturePoints().length >= 2) {
+    startTouchGesture();
     return;
   }
   const point = getCanvasPoint(event.clientX, event.clientY);
@@ -2032,6 +2139,11 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 
 canvas.addEventListener("pointermove", (event) => {
+  trackTouchPoint(event);
+  if (state.touchGesture.active) {
+    updateTouchGesture();
+    return;
+  }
   const point = getCanvasPoint(event.clientX, event.clientY);
 
   if (!state.pointer.active) {
@@ -2064,6 +2176,11 @@ function endPointerInteraction() {
 canvas.addEventListener("pointerup", endPointerInteraction);
 canvas.addEventListener("pointercancel", endPointerInteraction);
 window.addEventListener("pointermove", (event) => {
+  trackTouchPoint(event);
+  if (state.touchGesture.active) {
+    updateTouchGesture();
+    return;
+  }
   if (!state.pointer.active) {
     return;
   }
@@ -2074,6 +2191,10 @@ window.addEventListener("pointermove", (event) => {
   updatePointerInteraction(event, point);
 });
 window.addEventListener("pointerup", (event) => {
+  untrackTouchPoint(event);
+  if (state.touchGesture.active && getTouchGesturePoints().length < 2) {
+    stopTouchGesture();
+  }
   if (!state.pointer.active) {
     return;
   }
@@ -2083,6 +2204,10 @@ window.addEventListener("pointerup", (event) => {
   endPointerInteraction();
 });
 window.addEventListener("pointercancel", (event) => {
+  untrackTouchPoint(event);
+  if (state.touchGesture.active && getTouchGesturePoints().length < 2) {
+    stopTouchGesture();
+  }
   if (!state.pointer.active) {
     return;
   }

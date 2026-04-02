@@ -382,7 +382,7 @@ canvas {
 @media (max-width: 900px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(112px, 20dvh) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .sidebar {
@@ -391,11 +391,18 @@ canvas {
     align-items: stretch;
     gap: 0.75rem;
     padding: 0.75rem;
+    min-height: 0;
     overflow-x: auto;
     overflow-y: hidden;
     border-right: 0;
     border-bottom: 1px solid var(--line);
     scroll-snap-type: x proximity;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .resizer {
@@ -420,12 +427,20 @@ canvas {
     display: flex;
     flex-wrap: nowrap;
     gap: 0.5rem;
+    align-items: stretch;
   }
 
   .control-group button,
   .ratio-group button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: auto;
     min-width: 96px;
+    height: 42px;
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1;
     white-space: nowrap;
   }
 
