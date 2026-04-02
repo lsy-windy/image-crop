@@ -382,15 +382,64 @@ canvas {
 @media (max-width: 900px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(112px, 20dvh) minmax(0, 1fr);
   }
 
   .sidebar {
-    display: none;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    scroll-snap-type: x proximity;
   }
 
   .resizer {
     display: none;
+  }
+
+  .sidebar-title,
+  .group-title,
+  .crop-info {
+    display: none;
+  }
+
+  .control-group {
+    margin-top: 0;
+    min-width: max-content;
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .control-group.row,
+  .ratio-group {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+
+  .control-group button,
+  .ratio-group button {
+    width: auto;
+    min-width: 96px;
+    white-space: nowrap;
+  }
+
+  .workspace {
+    padding: 0.75rem;
+  }
+
+  .drop-overlay {
+    inset: 0.75rem;
+  }
+
+  .upload-trigger {
+    width: min(78%, 360px);
+    height: min(44%, 240px);
   }
 }
 

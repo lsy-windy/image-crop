@@ -1,0 +1,7 @@
+{
+  "files.watcherExclude": {
+    "**/dist/**": true,
+    "**/image-crop-workspace.tar": true,
+    "**/deploy-package.zip": true
+  }
+}
